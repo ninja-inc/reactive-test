@@ -2,8 +2,10 @@ package com.example.reactivetest.webclient
 
 import com.fasterxml.jackson.databind.JsonNode
 import io.netty.channel.ChannelOption
+import io.netty.handler.timeout.ReadTimeoutHandler
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -17,6 +19,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 class WebClientTest {
     private lateinit var server: MockWebServer
@@ -51,7 +54,7 @@ class WebClientTest {
 
         assertThatThrownBy {result.block()}
                 .isInstanceOf(WebClientResponseException::class.java)
-                .hasMessageContaining("500 Internal Server Error")
+                .hasMessage("ClientResponse has erroneous status code: 500 Internal Server Error")
     }
 
     @Test
@@ -85,10 +88,50 @@ class WebClientTest {
         // ReactiveException.class will be thrown but it is default modifier
         assertThatThrownBy {result.block()}
                 .isInstanceOf(RuntimeException::class.java)
-                .hasMessageContaining("1000ms")
+                .hasCause(TimeoutException("Did not observe any item or terminal signal within 1000ms (and no fallback has been configured)"))
+    }
+
+    @Test
+    fun `when 500 status code returns with onErrorMap()`() {
+        server.enqueue(MockResponse().setResponseCode(500))
+
+        val result: Mono<JsonNode> = webClient.get()
+                .uri("/")
+                .retrieve()
+                .bodyToMono(JsonNode::class.java)
+                .onErrorMap({e -> e is WebClientResponseException}, {e -> MyCustomException(e)})
+
+        assertThatThrownBy {result.block()}
+                .isInstanceOf(MyCustomException::class.java)
+    }
+
+    @Test
+    fun `when timeout error happens with onErrorMap()`() {
+        server.enqueue(MockResponse().setResponseCode(500).setBodyDelay(3, TimeUnit.SECONDS))
+
+        val result: Mono<JsonNode> = webClient.get()
+                .uri("/")
+                .retrieve()
+                .bodyToMono(JsonNode::class.java)
+                .onErrorMap({e -> e is WebClientResponseException}, {e -> MyCustomException(e)})
+                //.onErrorMap {e -> MyCustomException(e)} onError() here will now work as expected in case of timeout
+                .timeout(Duration.ofSeconds(1))
+                .onErrorMap {e -> MyCustomException(e)}
+
+        assertThatThrownBy {result.block()}
+                .isInstanceOf(MyCustomException::class.java)
+                .hasCauseExactlyInstanceOf(TimeoutException::class.java)
     }
 }
 
-class MyCustomException(
-       val response: ClientResponse
-): RuntimeException()
+class MyCustomException: RuntimeException {
+    val clientResponse: ClientResponse?
+
+    constructor(clientResponse: ClientResponse) {
+        this.clientResponse = clientResponse
+    }
+
+    constructor(cause: Throwable): super(cause) {
+        this.clientResponse = null
+    }
+}
