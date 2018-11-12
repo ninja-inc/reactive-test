@@ -122,6 +122,35 @@ class WebClientTest {
                 .isInstanceOf(MyCustomException::class.java)
                 .hasCauseExactlyInstanceOf(TimeoutException::class.java)
     }
+
+    @Test
+    fun `(either pattern) when 500 status code returns with onErrorResume()`() {
+        server.enqueue(MockResponse().setResponseCode(500))
+
+        val result: Mono<out SubTransactionResult> = webClient.get()
+                .uri("/")
+                .retrieve()
+                .bodyToMono(JsonNode::class.java)
+                .map { response -> SubTransactionSuccess(response) as SubTransactionResult}
+                .onErrorResume( {e -> e is WebClientResponseException}, {e -> Mono.just(SubTransactionFailure(e))} )
+
+        assertThat(result.block()).isInstanceOf(SubTransactionFailure::class.java)
+    }
+
+    @Test
+    fun `(either pattern) when success`() {
+        server.enqueue(MockResponse().setResponseCode(200))
+
+        val result: Mono<out SubTransactionResult> = webClient.get()
+                .uri("/")
+                .retrieve()
+                .bodyToMono(JsonNode::class.java)
+                .map { response -> SubTransactionSuccess(response) as SubTransactionResult}
+                .onErrorResume( {e -> e is WebClientResponseException}, {e -> Mono.just(SubTransactionFailure(e))} )
+                .switchIfEmpty ( Mono.just(SubTransactionSuccess()) ) // This is needed when response body is null otherwise `null` will return when we block Mono instance.
+
+        assertThat(result.block()).isInstanceOf(SubTransactionSuccess::class.java)
+    }
 }
 
 class MyCustomException: RuntimeException {
@@ -135,3 +164,13 @@ class MyCustomException: RuntimeException {
         this.clientResponse = null
     }
 }
+
+sealed class SubTransactionResult
+
+data class SubTransactionSuccess(
+        val response: JsonNode? = null
+) : SubTransactionResult()
+
+data class SubTransactionFailure(
+        val exception: Throwable
+) : SubTransactionResult()
