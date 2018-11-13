@@ -114,7 +114,7 @@ class WebClientTest {
                 .retrieve()
                 .bodyToMono(JsonNode::class.java)
                 .onErrorMap({e -> e is WebClientResponseException}, {e -> MyCustomException(e)})
-                //.onErrorMap {e -> MyCustomException(e)} onError() here will now work as expected in case of timeout
+                //.onErrorMap {e -> MyCustomException(e)} onError() here will now work as expected in case of timeout. this should be written after .timeout() block.
                 .timeout(Duration.ofSeconds(1))
                 .onErrorMap {e -> MyCustomException(e)}
 
