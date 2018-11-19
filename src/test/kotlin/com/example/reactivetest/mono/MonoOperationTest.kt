@@ -1,6 +1,7 @@
 package com.example.reactivetest.mono
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
@@ -59,7 +60,25 @@ class MonoOperationTest {
                 .map { res -> res.detail }
                 .switchIfEmpty(Mono.error(RuntimeException("result is not success")))
 
-        assertThat(mono.block()).isEqualTo(null);
+        assertThatThrownBy { mono.block() }
+                .hasMessageContaining("result is not success")
+    }
+
+    @Test
+    fun `Mono empty`() {
+        val mono = Mono.empty<String>()
+
+        assertThat(mono.block()).isNull()
+    }
+
+    @Test
+    fun `Mono throw exception`() {
+        val mono = Mono.just("aaa")
+                .doOnNext { throw RuntimeException("fail!!") }
+                .map { _ -> "bbb" }
+
+        assertThatThrownBy { mono.block() }
+                .hasMessageContaining("fail!!")
     }
 }
 

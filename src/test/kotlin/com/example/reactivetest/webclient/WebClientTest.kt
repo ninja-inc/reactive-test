@@ -124,6 +124,35 @@ class WebClientTest {
     }
 
     @Test
+    fun `block with latency`() {
+        val response = MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""
+                    {
+                        "message": "hello!"
+                    }
+                """.trimIndent())
+                .setBodyDelay(3, TimeUnit.SECONDS)
+
+        server.enqueue(response)
+
+        val result: Mono<JsonNode> = webClient.get()
+                .uri("/")
+                .retrieve()
+                .bodyToMono(JsonNode::class.java)
+                .cache()
+                .cache()
+
+        log.info("start")
+        log.info("1st result: ${result.block()}")
+        log.info("2nd result: ${result.blockOptional()}")
+        log.info("3rd result: ${result.blockOptional()}")
+        log.info("4th result: ${result.blockOptional()}")
+        log.info("5th result: ${result.blockOptional()}")
+    }
+
+    @Test
     fun `(either pattern) when 500 status code returns with onErrorResume()`() {
         server.enqueue(MockResponse().setResponseCode(500))
 

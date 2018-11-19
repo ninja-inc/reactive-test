@@ -16,4 +16,13 @@ class SimpleMono {
             }
         }, 500)
     }
+
+    fun increment2(v: Int): Mono<Int> = Mono.create() { e ->
+        timer.schedule(object : TimerTask() {
+            override fun run() {
+                log.debug("increment, $v + 1")
+                e.success(v + 1)
+            }
+        }, 5_000)
+    }
 }
