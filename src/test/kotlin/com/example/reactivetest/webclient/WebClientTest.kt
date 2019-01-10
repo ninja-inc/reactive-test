@@ -17,6 +17,7 @@ import org.springframework.web.reactive.function.client.ClientResponse
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -150,6 +151,38 @@ class WebClientTest {
         log.info("3rd result: ${result.blockOptional()}")
         log.info("4th result: ${result.blockOptional()}")
         log.info("5th result: ${result.blockOptional()}")
+    }
+
+    @Test
+    fun `block with latency2`() {
+        val response1 = MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBodyDelay(3, TimeUnit.SECONDS)
+
+        val response2 = MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBodyDelay(3, TimeUnit.SECONDS)
+
+        server.enqueue(response1)
+        server.enqueue(response2)
+
+        val result1: Mono<String> = webClient.get()
+                .uri("/")
+                .retrieve()
+                .bodyToMono(String::class.java)
+                .subscribeOn(Schedulers.parallel())
+
+        val result2: Mono<String> = webClient.get()
+                .uri("/")
+                .retrieve()
+                .bodyToMono(String::class.java)
+                .subscribeOn(Schedulers.parallel())
+
+        log.info("start test")
+        log.info("1st result: ${result1.block()}")
+        log.info("2nd result: ${result2.block()}")
     }
 
     @Test

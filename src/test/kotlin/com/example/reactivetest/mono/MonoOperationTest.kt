@@ -80,6 +80,23 @@ class MonoOperationTest {
         assertThatThrownBy { mono.block() }
                 .hasMessageContaining("fail!!")
     }
+
+    @Test
+    fun `Mono latency test`() {
+        val mono1: Mono<Void> = Mono.create {sink ->
+            Thread.sleep(3_000)
+            sink.success()
+        }
+
+        val mono2: Mono<Void> = Mono.create {sink ->
+            Thread.sleep(3_000)
+            sink.success()
+        }
+
+        log.info("start")
+        log.info("${mono1.block()}")
+        log.info("${mono2.block()}")
+    }
 }
 
 data class Result(
