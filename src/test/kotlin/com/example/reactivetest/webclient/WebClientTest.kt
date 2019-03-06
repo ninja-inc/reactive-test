@@ -37,6 +37,11 @@ class WebClientTest {
                     options -> options.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1_000)
                 })
                 .build()
+
+        webClient.get()
+                .uri("")
+                .exchange()
+                .flatMap { res -> if (res.statusCode() == HttpStatus.OK) res.bodyToMono(String.javaClass) else res.bodyToMono(String.javaClass) }
     }
 
     @AfterEach
